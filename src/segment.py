@@ -1,15 +1,9 @@
-# By defining the terminal pressures
-# to be uniform, we can determine the global resistance from the
-# total flow rate, Q0, and pressure drop from source to terminals,
-# deltaPs, allowing the root radius, r0, to be calculated.
-
-
 import math
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.linalg import norm
+from numpy.linalg import norm
 
-viscosity = 0.64
+viscosity = 0.36
 delta_Ps = 40000
 
 
@@ -60,7 +54,6 @@ class Segment:
         if self.left is not None or self.right is not None:
             self.left.x_start = x_new
             self.right.x_start = x_new
-            return
 
     def update_radii(self):
         child = self.father
@@ -81,12 +74,12 @@ class Segment:
         p = x
         a = self.x_start
         b = self.x_term
-        d = np.divide(b - a, np.linalg.norm(b - a))
+        d = np.divide(b - a, norm(b - a))
         s = np.dot(a - p, d)
         t = np.dot(p - b, d)
         h = np.maximum.reduce([s, t, 0])
         c = np.cross(p - a, d)
-        return np.hypot(h, np.linalg.norm(c))
+        return np.hypot(h, norm(c))
 
 
 class Tree:
@@ -150,57 +143,6 @@ class Tree:
             total += seg.lateral_surface()
         return total
 
-    def __visualize_cylinder_two_point_rad (self, points_radius):
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        print("generating visualization...")
-
-        for i in range(len(points_radius)):
-            p0 = points_radius[i][0][0]
-            p1 = points_radius[i][0][1]
-            R = points_radius[i][1]
-
-            # vector in direction of axis
-            v = p1 - p0
-            # find magnitude of vector
-            mag = norm(v)
-            # unit vector in direction of axis
-            v = v / mag
-            # make some vector not in the same direction as v
-            not_v = np.array([1, 0, 0])
-            if (v == not_v).all():
-                not_v = np.array([0, 1, 0])
-            # make vector perpendicular to v
-            n1 = np.cross(v, not_v)
-            # normalize n1
-            n1 /= norm(n1)
-            # make unit vector perpendicular to v and n1
-            n2 = np.cross(v, n1)
-            # surface ranges over t from 0 to length of axis and 0 to 2*pi
-            t = np.linspace(0, mag, 2)
-            theta = np.linspace(0, 2 * np.pi, 6)
-            # use meshgrid to make 2d arrays
-            t, theta = np.meshgrid(t, theta)
-            # generate coordinates for surface
-            X, Y, Z = [p0[i] + v[i] * t + R * np.sin(theta) * n1[i] + R * np.cos(theta) * n2[i] for i in [0, 1, 2]]
-            ax.plot_surface(X, Y, Z, color="red")
-            # plot axis
-            ax.set_xlim(-5, 15)
-            ax.set_ylim(-5, 15)
-            ax.set_zlim(-5, 15)
-        plt.show()
-
-    def print(self):
-        coordinates_radius = []
-        for seg in self.segments:
-            coordinates_radius.append([[seg.x_start, seg.x_term], seg.radius()])
-            print(str(seg) + " : " +
-                  str(seg.x_start) +
-                  str(seg.x_term) +
-                  " length: " + str(seg.length())
-                  + " radius: " + str(seg.radius()))
-        self.__visualize_cylinder_two_point_rad(coordinates_radius)
-
     def find_neighborhood(self, x, dim=10):
         neighborhood = []
         distances = []
@@ -238,3 +180,55 @@ class Tree:
         seg.update_start(x)
         self.update_all()
         return tree.lateral_surface()
+
+
+    def __visualize_cylinder_two_point_rad (self, points_radius):
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        print("generating visualization...")
+
+        for i in range(len(points_radius)):
+            p0 = points_radius[i][0][0]
+            p1 = points_radius[i][0][1]
+            R = points_radius[i][1]
+
+            # vector in direction of axis
+            v = p1 - p0
+            # find magnitude of vector
+            mag = norm(v)
+            # unit vector in direction of axis
+            v = v / mag
+            # make some vector not in the same direction as v
+            not_v = np.array([1, 0, 0])
+            if (v == not_v).all():
+                not_v = np.array([0, 1, 0])
+            # make vector perpendicular to v
+            n1 = np.cross(v, not_v)
+            # normalize n1
+            n1 /= norm(n1)
+            # make unit vector perpendicular to v and n1
+            n2 = np.cross(v, n1)
+            # surface ranges over t from 0 to length of axis and 0 to 2*pi
+            t = np.linspace(0, mag, 2)
+            theta = np.linspace(0, 2 * np.pi, 15)
+            # use meshgrid to make 2d arrays
+            t, theta = np.meshgrid(t, theta)
+            # generate coordinates for surface
+            X, Y, Z = [p0[i] + v[i] * t + R * np.sin(theta) * n1[i] + R * np.cos(theta) * n2[i] for i in [0, 1, 2]]
+            ax.plot_surface(X, Y, Z, color="red")
+            # plot axis
+            ax.set_xlim(-5, 15)
+            ax.set_ylim(-5, 15)
+            ax.set_zlim(-5, 15)
+        plt.show()
+
+    def print(self):
+        coordinates_radius = []
+        for seg in self.segments:
+            coordinates_radius.append([[seg.x_start, seg.x_term], seg.radius()])
+            print(str(seg) + " : " +
+                  str(seg.x_start) +
+                  str(seg.x_term) +
+                  " length: " + str(seg.length())
+                  + " radius: " + str(seg.radius()))
+        self.__visualize_cylinder_two_point_rad(coordinates_radius)

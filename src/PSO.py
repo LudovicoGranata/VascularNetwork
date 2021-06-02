@@ -6,12 +6,15 @@ class Particle:
     def __init__(self, x_0, v):
         self.x = x_0
         self.v = v
+        self.n_constraints = None
         self.p_best = None
         self.pos_p_best = None
+        self.feasible_best = None
+        self.n_constraints = None
 
 
 class Swarm:
-    def __init__(self, function, dimensions, bounds, constraints=None, n_particle=20, iterations=12, args=None):
+    def __init__(self, function, dimensions, bounds, constraints=None, n_particle=25, iterations=40, args=None):
         self.function = function
         self.swarm = []
         self.n_particle = n_particle
@@ -24,27 +27,26 @@ class Swarm:
         self.args = args
 
         # generate the swarm positions and velocities
-        if constraints is not None:
-            self.__generate_swarm_heuristic()
-            self.__create_reference()
-        else:
-            self.__generate_swarm(n_particle)
-
+        self.__generate_swarm()
         # assign best values and positions
         self.__p_best()
         # best in the neighborhood
         self.__best_neighborhood()
-        # update positions and  velocities
-        for k in range(iterations-1):
+        k = 0
+        non_improving = 0
+        eps = 0.1
+        while k < (iterations-1) and non_improving < 5:
+            current_best = copy.deepcopy(self.g.p_best)
             self.__update_velocities_positions(k)
-            if self.constraints is not None:
-                self.__repair_operator()
             self.__p_best()
             self.__best_neighborhood()
+            if 0 < abs(current_best - self.g.p_best) < eps:
+                non_improving += 1
+            k += 1
 
-    def __generate_swarm(self, n_particle):
+    def __generate_swarm(self):
         vel = np.ones(self.dimensions)
-        for _ in range(n_particle):
+        for _ in range(self.n_particle):
             random_point = np.empty(self.dimensions)
             for i in range(self.dimensions):
                 random_point[i] = np.random.rand() * (abs(self.bounds[i][1] - self.bounds[i][0])) + self.bounds[i][0]
@@ -52,7 +54,7 @@ class Swarm:
 
     # generate velocities
     def __update_velocities_positions(self, k):
-        w = (1.2 - 0.5) * ((self.iterations-(k+1))/self.iterations) + 0.5 # Time-Varying Inertia Weight (TVIW)
+        w = (1.2 - 0.1) * ((self.iterations-(k+1))/self.iterations) + 0.1 # Time-Varying Inertia Weight (TVIW)
         c1 = 2.05
         c2 = 2.05
         phi = c1 + c2
@@ -65,27 +67,57 @@ class Swarm:
             global_adjustment = c2 * U_2 * (self.g.pos_p_best - particle.x)
             particle.v = chi * (w * particle.v + local_adjustment + global_adjustment)
             particle.x += particle.v
+    '''
+    Assign best values and positions so that:
+        Any feasible solution is preferred to any infeasible solution.
+        Between two feasible solutions, the one having better objective function value is preferred.
+        Between two infeasible solutions, the one having smaller constraint violation is preferred.
+    '''
 
-    # assign best values and positions
     def __p_best(self):
         for particle in self.swarm:
-            cost = self.function(particle.x, *self.args)
-            if particle.p_best is None or particle.p_best > cost:
+            if self.args is None:
+                cost = self.function(particle.x)
+            else:
+                cost = self.function(particle.x, *self.args)
+            particle.n_constraints = self.__n_constraints_unsatisfied(particle.x)
+            if particle.p_best is None:
                 particle.p_best = cost
                 particle.pos_p_best = copy.deepcopy(particle.x)
+                particle.n_constraints_best = copy.deepcopy(particle.n_constraints)
+                continue
+            if particle.n_constraints < particle.n_constraints_best:
+                particle.p_best = cost
+                particle.pos_p_best = copy.deepcopy(particle.x)
+                particle.n_constraints_best = copy.deepcopy(particle.n_constraints)
+                continue
 
-    # the best particle among all particles
+            if particle.n_constraints == 0 and particle.n_constraints == particle.n_constraints_best and cost < particle.p_best:
+                particle.p_best = cost
+                particle.pos_p_best = copy.deepcopy(particle.x)
+                particle.n_constraints_best = copy.deepcopy(particle.n_constraints)
+
+   
+   
+    # the best particle among all particles (global neighborhood)
     def __best_neighborhood(self):
         for particle in self.swarm:
-            if self.g is None or particle.p_best < self.g.p_best:
-                self.g = particle
+            if self.g is None:
+                self.g = copy.deepcopy(particle)
+                continue
+            if particle.n_constraints_best < self.g.n_constraints_best:
+                self.g = copy.deepcopy(particle)
+                continue
+            if particle.n_constraints_best == 0 and particle.n_constraints_best == self.g.n_constraints_best and particle.p_best < self.g.p_best:
+                self.g = copy.deepcopy(particle)
+
 
     def __generate_swarm_heuristic(self):
         random_point = np.empty(self.dimensions)
         vel = np.ones(self.dimensions)
         for i in range(self.dimensions):
             random_point[i] = np.random.rand() * (abs(self.bounds[i][1] - self.bounds[i][0])) + self.bounds[i][0]
-        while not self.__feasible_point(random_point):
+        while not self.__is_feasible(random_point):
             for i in range(self.dimensions):
                 random_point[i] = np.random.rand() * (abs(self.bounds[i][1] - self.bounds[i][0])) + self.bounds[i][0]
         self.swarm.append(Particle(random_point, vel))
@@ -93,42 +125,27 @@ class Swarm:
             random_point = np.empty(self.dimensions)
             for i in range(self.dimensions):
                 random_point[i] = np.random.rand() * (abs(self.bounds[i][1] - self.bounds[i][0])) + self.bounds[i][0]
-            if not self.__feasible_point(random_point):
+            if not self.__is_feasible(random_point):
                 feasible_particle_pos = self.swarm[np.random.randint(len(self.swarm)) - 1].x
-                while not self.__feasible_point(random_point):
+                while not self.__is_feasible(random_point):
                     random_point = 0.6*random_point + 0.4*feasible_particle_pos
             self.swarm.append(Particle(random_point, vel))
 
-    def __create_reference(self, reference_dim=5):
-        for _ in range (reference_dim):
-            random_point = np.empty(self.dimensions)
-            vel = np.zeros(self.dimensions)
-            for i in range(self.dimensions):
-                random_point[i] = np.random.rand() * (abs(self.bounds[i][1] - self.bounds[i][0])) + self.bounds[i][0]
-            while not self.__feasible_point(random_point):
-                for i in range(self.dimensions):
-                    random_point[i] = np.random.rand() * (abs(self.bounds[i][1] - self.bounds[i][0])) + self.bounds[i][0]
 
-            self.reference.append(Particle(random_point, vel))
-
-    def __repair_operator(self):
-        for particle in self.swarm:
-            if not self.__feasible_point(particle.x):
-                reference_particle_pos = self.reference[np.random.randint(len(self.reference)) - 1].x
-                while not self.__feasible_point(particle.x):
-                    particle.x = 0.9 * particle.x + 0.1 * reference_particle_pos
-
-    def __feasible_point(self, random_point):
-        eps = 0.001
+    def __n_constraints_unsatisfied(self, point):
+        eps = 0.0001
+        n_constraints = 0
         for cons in self.constraints:
             type = cons['type']
             fun = cons['fun']
             args = cons['args']
             if type =="ineq":
-                if not fun(random_point, *args) > 0:
-                    return False
+                if not fun(point, *args) > 0:
+                     n_constraints += 1
             if type == "eq":
-                if not abs(fun(random_point, *args)) <= eps:
-                    return False
+                if not abs(fun(point, *args)) <= eps:
+                    n_constraints += 1
+        return n_constraints
 
-        return True
+    def __is_feasible(self, point):
+        return self.__n_constraints_unsatisfied(point) == 0

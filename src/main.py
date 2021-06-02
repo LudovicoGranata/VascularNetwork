@@ -1,9 +1,7 @@
 
 #in the present work, the total surface area was
 #used as cost function for optimization, while the required total flow and the
-#size of the perfusion area were kept constant, the surface area calculated for
-#individual trees indicate the degree of optimal it y which could be achieved
-#when the shape of the perfusion area was changed in typical ways
+#size of the perfusion area were kept constant
 
 
 import PSO
@@ -12,7 +10,18 @@ from segment import Tree
 import numpy as np
 import random
 
+'''
+The generation of the tree has the following structure:
+     generation of the starting segment (root) randomly in the tissue volume
+     for t_term :
+        generate a terminal location
+        generate the neighborhood segments of the terminal location
+        for every element in the neighborhood:
+             attach the terminal location to the segment creating a bifurcation
+             optimize the position of the bifurcation minimizing the lateral surface of the entire tree
+        take the best segment and the best bifurcation and make it permanent
 
+'''
 def generate_tree(t_term=50, n_near=2, box_dimension=10, start=np.array([10, 10, 9])):
     root = Segment(start, np.array([random.random()*box_dimension,
                                     random.random()*box_dimension,
@@ -53,6 +62,10 @@ def generate_tree(t_term=50, n_near=2, box_dimension=10, start=np.array([10, 10,
     tree.print()
 
 
+'''
+Generate the terminal location, we can generate so that the new location is positioned
+not too far from the other segments and not too near (d_min and d_max)
+'''
 def generate_terminal_location(tree, box_dimension=10, d_min=2, d_max=10):
     found = 0
     x_term = None
@@ -73,7 +86,10 @@ def generate_terminal_location(tree, box_dimension=10, d_min=2, d_max=10):
             found = 1
     return x_term
 
-
+'''
+the following three constraints have to be used so that the three segments resulting from
+the creation of a new bifurcation don't degenerate to zero.
+'''
 def constraint1(x, seg):
     radius = seg.radius()
     seg.update_start(x)
