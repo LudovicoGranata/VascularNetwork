@@ -137,6 +137,13 @@ class Tree:
         self.segments.remove(segment)
         self.segments.remove(other_child)
 
+        father.R = ((8 * viscosity) / math.pi) * father.length()
+        if father.left is not None or father.right is not None:
+            father.R = father.R + (
+                    ((father.b_left ** 4) / father.left.R) + (
+                    (father.b_right ** 4) / father.right.R)) ** (-1)
+                    
+
     def lateral_surface(self):
         total = 0
         for seg in self.segments:
