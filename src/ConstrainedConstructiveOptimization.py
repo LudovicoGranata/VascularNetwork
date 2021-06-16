@@ -4,11 +4,11 @@
 #size of the perfusion area were kept constant
 
 
-import PSO
 from segment import Segment
 from segment import Tree
 import numpy as np
 import random
+from scipy.optimize import minimize
 
 '''
 The generation of the tree has the following structure:
@@ -23,8 +23,8 @@ The generation of the tree has the following structure:
 
 '''
 def generate_tree(t_term=50, n_near=2, box_dimension=10, start=np.array([10, 10, 9])):
-    root = Segment(start, np.array([random.random()*box_dimension,
-                                    random.random()*box_dimension,
+    root = Segment(start, np.array([random.random() * box_dimension,
+                                    random.random() * box_dimension,
                                     random.random() * box_dimension]))
     tree = Tree(root)
     for i in range(t_term - 1):
@@ -40,10 +40,7 @@ def generate_tree(t_term=50, n_near=2, box_dimension=10, start=np.array([10, 10,
                     {'type': 'ineq', 'fun': constraint2, 'args': (other_segment,)},
                     {'type': 'ineq', 'fun': constraint3, 'args': (parent_segment,)}
                     ]
-            result = PSO.Swarm(tree.cost_function, args=(added_segment, tree), constraints=cons, dimensions=3,
-                               bounds=[(-box_dimension, box_dimension),
-                                       (-box_dimension, box_dimension),
-                                       (-box_dimension, box_dimension)])
+            result = minimize(tree.cost_function, x0=[10, 10, 9], args=(added_segment, tree), constraints=cons)
             if best == -1:
                 best = result.g.p_best
                 best_seg = seg
