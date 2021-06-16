@@ -22,7 +22,7 @@ The generation of the tree has the following structure:
         take the best segment and the best bifurcation and make it permanent
 
 '''
-def generate_tree(t_term=50, n_near=2, box_dimension=10, start=np.array([10, 10, 9])):
+def generate_tree(t_term=100, n_near=2, box_dimension=10, start=np.array([10, 10, 9])):
     root = Segment(start, np.array([random.random() * box_dimension,
                                     random.random() * box_dimension,
                                     random.random() * box_dimension]))
@@ -42,14 +42,15 @@ def generate_tree(t_term=50, n_near=2, box_dimension=10, start=np.array([10, 10,
                     ]
             result = minimize(tree.cost_function, x0=[10, 10, 9], args=(added_segment, tree), constraints=cons)
             if best == -1:
-                best = result.g.p_best
+                best = tree.cost_function(result.x, added_segment, tree)
                 best_seg = seg
-                best_x = result.g.pos_p_best
+                best_x = result.x
             else:
-                if result.g.p_best < best:
-                    best = result.g.p_best
+                cost = tree.cost_function(result.x, added_segment, tree)
+                if cost < best:
+                    best = cost
                     best_seg = seg
-                    best_x = result.g.pos_p_best
+                    best_x = result.x
 
             tree.delete(added_segment)
 
@@ -63,7 +64,7 @@ def generate_tree(t_term=50, n_near=2, box_dimension=10, start=np.array([10, 10,
 Generate the terminal location, we can generate so that the new location is positioned
 not too far from the other segments and not too near (d_min and d_max)
 '''
-def generate_terminal_location(tree, box_dimension=10, d_min=2, d_max=10):
+def generate_terminal_location(tree, box_dimension=10, d_min=0.2, d_max=10):
     found = 0
     x_term = None
     while found == 0:
